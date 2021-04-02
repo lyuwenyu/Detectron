@@ -5,7 +5,7 @@ import torch.nn.functional as F
 
 from collections import defaultdict
 
-from ..utils.bbox import wh_iou
+from ..utils.bbox import wh_iou, bbox_iou
 
 
 class YOLOV3Target(nn.Module):
@@ -16,7 +16,7 @@ class YOLOV3Target(nn.Module):
 
         self.iou_threshold = 0.1  # 0.2
         self.wh_threshold = 4.0 
-        self.wh_mode = 'v5' # 'sigmoid', 'exp'
+        self.wh_mode = 'v3' # 'sigmoid', 'exp'
 
         self.num_anchors = 3
         self.num_classes = 80
@@ -66,7 +66,6 @@ class YOLOV3Target(nn.Module):
                 pred[..., 4:].sigmoid_()
 
                 pred = pred.view(n, -1, self.num_outputs)
-
                 outputs.append(pred)
 
             else:
@@ -89,26 +88,28 @@ class YOLOV3Target(nn.Module):
         lcls, lbox, lobj = [torch.zeros(1, device=pred.device) for _ in range(3)]
         
         tobj = torch.zeros_like(pred[..., 0], device=pred.device)
-        (im_idx, an_idx, j_idx, i_idx), tcls, t_xy, t_wh = self._build_target(pred.detach(), anchors, targets)
+        t, (im_idx, an_idx, j_idx, i_idx), tcls, t_xy, t_wh = self._build_target(pred.detach(), anchors, targets)
 
         if tcls.shape[0] > 0:
 
             p = pred[im_idx, an_idx, j_idx, i_idx]
 
+            # t_obj
             tobj[im_idx, an_idx, j_idx, i_idx] = 1.
-            # r_j_idx = torch.clip(j_idx+1, 0, pred.shape[-3]-1)
-            # d_i_idx = torch.clip(i_idx+1, 0, pred.shape[-2]-1)
-            # tobj[im_idx, an_idx, j_idx, d_i_idx] = 0.9
-            # tobj[im_idx, an_idx, r_j_idx, i_idx] = 0.9
-            # tobj[im_idx, an_idx, r_j_idx, d_i_idx] = 0.9
+
+            # # p_bbox
+            # _p_xy = p[:, 0:2].sigmoid() + torch.cat((j_idx.unsqueeze(-1), i_idx.unsqueeze(-1)), dim=-1)
+            # _p_wh = 2 ** (2 * (p[:, 2:4].sigmoid() - 0.5)) ** 2 * anchors[an_idx]
+            # p_box = torch.cat((_p_xy, _p_wh), dim=1)
+            # iou = bbox_iou(p_box.T, t[:, 2:6], x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
+            # lbox += (1.0 - iou).mean()
 
             # p_xy = p[:, 0:2]
             lbox += F.binary_cross_entropy_with_logits(p[:, 0:2], t_xy, reduction='mean')
 
             # p_wh = p[:, 2:4]
             if self.wh_mode == 'v3':
-                lbox += F.smooth_l1_loss(p[:, 2:4], t_wh, reduction='mean')
-
+                lbox += F.mse_loss(p[:, 2:4], t_wh, reduction='mean')
             elif self.wh_mode == 'v5':
                 lbox += F.binary_cross_entropy_with_logits(p[:, 2:4], t_wh, reduction='mean')
 
@@ -120,7 +121,7 @@ class YOLOV3Target(nn.Module):
         # p_obj
         lobj += F.binary_cross_entropy_with_logits(pred[..., 4], tobj, reduction='mean')
 
-        loss = 0.5 * lcls + 0.005 * lbox + lobj
+        loss = 0.5 * lcls + 0.05 * lbox + lobj
 
         return loss, lbox, lobj, lcls
 
@@ -141,15 +142,9 @@ class YOLOV3Target(nn.Module):
 
             t = t.view(-1, 7)
             ious = wh_iou(anchors, t[:, 4:6])
-            value, index = ious.max(0)
-            # j1 = value > self.iou_threshold
-            # j2 = index == t[:, -1] 
-            # t = t[j1 & j2]
-            j = (index == t[:, -1]) & (value > self.iou_threshold)
+            _value, _index = ious.max(0)
+            j = (_index == t[:, -1]) & (_value > self.iou_threshold)
             t = t[j]
-
-            print(t.shape)
-
 
         im_idx = t[:, 0].long()
         an_idx = t[:, -1].long()
@@ -164,4 +159,4 @@ class YOLOV3Target(nn.Module):
             t_wh = torch.log2( torch.sqrt( t[:, [4, 5]] / anchors[an_idx] ) ) / 2. + 0.5
             # t_wh = torch.sqrt(t[:, [4, 5]] / anchors[an_idx]) / 2.
 
-        return (im_idx, an_idx, j_idx, i_idx), t_cls, t_xy, t_wh
+        return t, (im_idx, an_idx, j_idx, i_idx), t_cls, t_xy, t_wh

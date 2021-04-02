@@ -40,14 +40,19 @@ dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn)
 
 # optimizer = optim.Adam(yolov3.parameters(), lr=0.001)
 optimizer = optim.SGD(yolov3.parameters(), lr=0.01, momentum=0.9)
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.5)
 
-for data, label in dataloader:
-   
-    losses = yolov3(data, label)
-    losses['loss'].backward()
-    optimizer.step()
+
+for _ in range(3):
+
+    for data, label in dataloader:
     
-    print(losses['loss'].item(), losses['lbox'], losses['lobj'], losses['lcls'], )
+        losses = yolov3(data, label)
+        losses['loss'].backward()
+        optimizer.step()
+        
+        print(losses['loss'].item(), losses['lbox'], losses['lobj'], losses['lcls'], )
 
 
+torch.save(yolov3.state_dict(), './yolov3.pt')
 
