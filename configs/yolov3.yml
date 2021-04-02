@@ -1,0 +1,22 @@
+detector: YOLOF
+
+YOLOF:
+  backbone: ResNet50
+  encoder: DilatedEncoder
+  decoder: YOLOFDecoder
+  target: YOLOFTarget
+
+ResNet50:
+  norm_type: bn
+  activation: relu
+
+DilatedEncoder:
+  norm_type: bn
+
+YOLOFDecoder:
+  norm_type: bn
+
+YOLOFTarget:
+  norm_type: bn
+
+

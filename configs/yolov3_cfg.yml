@@ -1,0 +1,6 @@
+
+backbone:
+  act: 'relu'
+  
+encoder:
+  type: 'fpn'
