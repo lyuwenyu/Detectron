@@ -54,16 +54,7 @@ class YOLOV3Decoder(nn.Module):
         out_channels = (4 + 1 + num_classes) * num_anchors
 
         block = lambda c_in, c_out: nn.Sequential(
-            nn.Conv2d(c_in, c_in//2, 1, 1, 0),
-            nn.BatchNorm2d(c_in//2),
-            nn.ReLU(),
-            nn.Conv2d(c_in//2, c_in, 3, 1, 1),
-            nn.BatchNorm2d(c_in),
-            nn.ReLU(),
-            nn.Conv2d(c_in, c_in//2, 1, 1, 0),
-            nn.BatchNorm2d(c_in//2),
-            nn.ReLU(),
-            nn.Conv2d(c_in//2, c_in, 3, 1, 1),
+            nn.Conv2d(c_in, c_in, 3, 1, 1),
             nn.BatchNorm2d(c_in),
             nn.ReLU(),
 

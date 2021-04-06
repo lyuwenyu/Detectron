@@ -17,6 +17,7 @@ class YOLOV3Target(nn.Module):
         self.cfg = cfg
 
         self.iou_threshold = 0.2  # 0.2
+        self.ignore_threshold = 0.5
         self.wh_threshold = math.e ** 2
         self.wh_mode = 'v5' # 'sigmoid', 'exp'
 
@@ -48,22 +49,21 @@ class YOLOV3Target(nn.Module):
 
             n, _, h, w = pred.shape
             pred = pred.view(n, self.num_anchors, -1, h, w).permute(0, 1, 3, 4, 2).contiguous()
-            scaled_anchors = self.anchors[i].to(pred.device, pred.dtype) / self.strides[i]
 
             if not self.training or targets is None:
-                # grid_h, grid_w = torch.meshgrid([torch.arange(h), torch.arange(w)])
-                # grid = torch.cat((grid_h.unsqueeze(-1), grid_w.unsqueeze(-1)), dim=-1).to(dtype=pred.dtype, device=pred.device)
-                grid = self._make_grid(h, w, pred.device, pred.dtype)
+                # grid
+                grids = self._make_grid(h, w, pred.device, pred.dtype)
+                anchors = self.anchors[i].to(pred.device, pred.dtype)
 
                 # x y
-                pred[..., 0:2] = (pred[..., 0:2].sigmoid() + grid.view(1, 1, h, w, 2)) * self.strides[i]
+                pred[..., 0:2] = (pred[..., 0:2].sigmoid() + grids.view(1, 1, h, w, 2)) * self.strides[i]
 
                 # w h
                 if self.wh_mode == 'v3':
-                    pred[..., 2:4] = pred[..., 2:4].exp() * scaled_anchors.view(1, -1, 1, 1, 2) * self.strides[i]
+                    pred[..., 2:4] = pred[..., 2:4].exp() * anchors.view(1, -1, 1, 1, 2)
                 elif self.wh_mode == 'v5':
-                    pred[..., 2:4] = ma ** (2 * (pred[..., 2:4].sigmoid() - 0.5)) ** 2 * scaled_anchors.view(1, -1, 1, 1, 2) * self.strides[i]
-                    # pred[..., 2:4] = (2 * pred[..., 2:4].sigmoid()).pow(2) * scaled_anchors.view(1, -1, 1, 1, 2) * self.strides[i]
+                    pred[..., 2:4] = math.e ** (2 * (pred[..., 2:4].sigmoid() - 0.5)) ** 2 * anchors.view(1, -1, 1, 1, 2)
+                    # pred[..., 2:4] = (2 * pred[..., 2:4].sigmoid()).pow(2) * anchors.view(1, -1, 1, 1, 2)
 
                 # obj cls
                 pred[..., 4:].sigmoid_()
@@ -72,11 +72,12 @@ class YOLOV3Target(nn.Module):
                 outputs.append(pred)
 
             else:
-                t = targets.clone()
-                t[:, [2, 4]] *= w
-                t[:, [3, 5]] *= h 
+                _targets = targets.clone()
+                _targets[:, [2, 4]] *= w
+                _targets[:, [3, 5]] *= h 
+                _anchors = self.anchors[i].to(pred.device, pred.dtype) / self.strides[i]
 
-                loss, lbox, lobj, lcls = self._compute_loss(pred, scaled_anchors, t)
+                loss, lbox, lobj, lcls = self._compute_loss(pred, _anchors, _targets)
                 losses['loss'] += loss
                 losses['lcls'] += lcls.item()
                 losses['lbox'] += lbox.item()
@@ -99,7 +100,7 @@ class YOLOV3Target(nn.Module):
         lcls, lbox, lobj = [torch.zeros(1, device=pred.device) for _ in range(3)]
         
         tobj = torch.zeros_like(pred[..., 0], device=pred.device)
-        t, (im_idx, an_idx, j_idx, i_idx), t_cls, t_xy, t_wh, t_box = self._build_target(pred.detach(), anchors, targets)
+        (im_idx, an_idx, j_idx, i_idx, mask), t_cls, t_xy, t_wh, t_box = self._build_target(pred.detach(), anchors, targets)
 
         if t_cls.shape[0] > 0:
 
@@ -135,6 +136,9 @@ class YOLOV3Target(nn.Module):
         
         # p_obj
         lobj += F.binary_cross_entropy_with_logits(pred[..., 4], tobj, reduction='mean')
+        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][~mask], t_obj[~mask], reduction='mean')
+        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][t_obj==1], t_obj[t_obj==1], reduction='mean')
+        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][(t_obj==0)&~mask], t_obj[(t_obj==0)&~mask], reduction='mean')
 
         loss = 0.5 * lcls + 0.05 * lbox + lobj
 
@@ -145,11 +149,11 @@ class YOLOV3Target(nn.Module):
         '''
         target [nt, [im-idx, cls, x, y, w, h]]
         '''
-        nt = targets.shape[0]
-        ai = torch.arange(self.num_anchors, device=targets.device).float().view(-1, 1).repeat(1, nt)
-        t = torch.cat((targets.repeat(self.num_anchors, 1, 1), ai[:, :, None]), 2) # 3 * nt * (6 + 1)
+        n = targets.shape[0]
+        a = torch.arange(self.num_anchors, device=targets.device).float().view(-1, 1).repeat(1, n)
+        t = torch.cat((targets.repeat(self.num_anchors, 1, 1), a[:, :, None]), 2) # 3 * nt * (6 + 1)
 
-        if nt:
+        if n:
             if self.wh_mode == 'v5':
                 r = t[:, :, 4:6] / anchors[:, None, :]  # wh ratio
                 j = torch.max(r, 1. / r).max(2)[0] < self.wh_threshold
@@ -160,23 +164,48 @@ class YOLOV3Target(nn.Module):
                 ious = wh_iou(anchors, t[:, 4:6])
                 _value, _index = ious.max(0)
                 j = (_index == t[:, -1]) & (_value > self.iou_threshold)
+                
+                ignore = ~j & (_value > self.ignore_threshold)
+                ignore = t[ignore]
+
                 t = t[j]
 
         im_idx = t[:, 0].long()
         an_idx = t[:, -1].long()
-        # ij_idx = t[:, [2, 3]].long()
-        i_idx, j_idx = t[:, [2, 3]].long().T
+        i_idx, j_idx = t[:, 2:4].long().T
 
         t_cls = t[:, 1].long()
-        t_xy = t[:, [2, 3]] - t[:, [2, 3]].long().float()
+        t_xy = t[:, 2:4] - t[:, 2:4].long().float()
         
         if self.wh_mode == 'v3':
-            t_wh = torch.log(t[:, [4, 5]] / anchors[an_idx])
+            t_wh = torch.log(t[:, 4:6] / anchors[an_idx])
         elif self.wh_mode == 'v5':
-            t_wh = torch.log( torch.sqrt( t[:, [4, 5]] / anchors[an_idx] ) ) / 2. + 0.5
-            # t_wh = torch.sqrt(t[:, [4, 5]] / anchors[an_idx]) / 2.
+            t_wh = torch.log( torch.sqrt( t[:, 4:6] / anchors[an_idx] ) ) / 2. + 0.5
+            # t_wh = torch.sqrt(t[:, 4:6] / anchors[an_idx]) / 2.
         
-        t_box = torch.cat((t_xy, t[:, [4, 5]]), 1)
+        t_box = torch.cat((t_xy, t[:, 4:6]), 1)
 
-        return t, (im_idx, an_idx, j_idx, i_idx), t_cls, t_xy, t_wh, t_box
+        mask = torch.zeros_like(pred[..., 4], device=pred.device, dtype=torch.bool)
+        mask[ignore[:, 0].long(), ignore[:, -1].long(), ignore[:, 3].long(), ignore[:, 2].long()] = 1
 
+        return (im_idx, an_idx, j_idx, i_idx, mask), t_cls, t_xy, t_wh, t_box
+
+
+
+
+class SSDTarget(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
+
+        prior_bbox = []
+
+        self.register_buffer('prior_bbox', prior_bbox)
+
+
+    def forward(self, feats, targets=None):
+        '''
+        '''
+        if not isinstance(preds, (tuple, list)):
+            preds = (preds, )
+        
+        pass

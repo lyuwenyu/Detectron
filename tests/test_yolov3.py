@@ -61,6 +61,8 @@ for _ in range(3):
         label = label.to(device=device)
 
         losses = yolov3(data, label)
+        
+        optimizer.zero_grad()
         losses['loss'].backward()
         optimizer.step()
         
