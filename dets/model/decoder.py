@@ -16,14 +16,12 @@ class YOLOFDecoder(nn.Module):
         cls_decoder = nn.Sequential(*[conv_bn_relu(in_channels, in_channels, 3, 1, 1) for _ in range(2)])
         self.cls_decoder = nn.ModuleList([
             cls_decoder,
-            # conv_bn_relu(in_channels, num_anchors * num_classes, 1, 1, 0)
             nn.Conv2d(in_channels, num_anchors * num_classes, 1, 1, 0)
         ])
         
         reg_decoder = nn.Sequential(*[conv_bn_relu(in_channels, in_channels, 3, 1, 1) for _ in range(4)])
         self.reg_decoder = nn.ModuleList([
             reg_decoder,
-            # conv_bn_relu(in_channels, num_anchors * 4, 1, 1, 0)
             nn.Conv2d(in_channels, num_anchors * 4, 1, 1, 0)
         ])
 
@@ -42,6 +40,9 @@ class YOLOFDecoder(nn.Module):
 
 
 class YOLOV3Decoder(nn.Module):
+    '''
+    c -> (4-box + 1-obj + num_cls) * anchor
+    '''
     def __init__(self, cfg):
         super().__init__()
 
@@ -53,9 +54,19 @@ class YOLOV3Decoder(nn.Module):
         out_channels = (4 + 1 + num_classes) * num_anchors
 
         block = lambda c_in, c_out: nn.Sequential(
-            nn.Conv2d(c_in, c_in, 3, 1, 1),
+            nn.Conv2d(c_in, c_in//2, 1, 1, 0),
+            nn.BatchNorm2d(c_in//2),
+            nn.ReLU(),
+            nn.Conv2d(c_in//2, c_in, 3, 1, 1),
             nn.BatchNorm2d(c_in),
             nn.ReLU(),
+            nn.Conv2d(c_in, c_in//2, 1, 1, 0),
+            nn.BatchNorm2d(c_in//2),
+            nn.ReLU(),
+            nn.Conv2d(c_in//2, c_in, 3, 1, 1),
+            nn.BatchNorm2d(c_in),
+            nn.ReLU(),
+
             nn.Conv2d(c_in, c_out, 1, 1, 0),
         )
 
@@ -87,3 +98,26 @@ class YOLOV3Decoder(nn.Module):
         
         return outputs
 
+
+
+class RetinaDecoder(nn.Module):
+    '''two branch
+    cls branch
+    box branch
+    '''
+    def __init__(self, ):
+        super().__init__()
+        pass
+
+    def forward(self, feats):
+        pass
+
+
+
+class DETRDecoder(nn.Module):
+    def __init__(self, ):
+        super.__init__()
+        pass
+    
+    def forward(self, feats):
+        pass

@@ -25,7 +25,7 @@ targets = torch.tensor(bbox).view(-1, 6)
 data = torch.rand(1, 3, 640, 640)
 targets[:, 3:] = targets[:, 3:]
 
-yolov3 = YOLOV3Detector()
+
 
 # output = yolov3(data, targets)
 # try:
@@ -35,18 +35,31 @@ yolov3 = YOLOV3Detector()
 
 # print(yolov3)
 
+device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+
 dataset = DatasetYolov5('/Users/lvwenyu01/Desktop/workspace/dataset/coco128/images/train2017/')
 dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn)
 
+yolov3 = YOLOV3Detector().to(device=device)
+yolov3.train()
+
 # optimizer = optim.Adam(yolov3.parameters(), lr=0.001)
+
+yolov3.model[0].eval()
+for p in yolov3.model[0].parameters():
+    p.requires_grad = False
+
 optimizer = optim.SGD(yolov3.parameters(), lr=0.01, momentum=0.9)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.5)
+
 
 
 for _ in range(3):
 
     for data, label in dataloader:
-    
+        data = data.to(device=device)
+        label = label.to(device=device)
+
         losses = yolov3(data, label)
         losses['loss'].backward()
         optimizer.step()
@@ -54,5 +67,6 @@ for _ in range(3):
         print(losses['loss'].item(), losses['lbox'], losses['lobj'], losses['lcls'], )
 
 
+yolov3 = yolov3.to(torch.device('cpu'))
 torch.save(yolov3.state_dict(), './yolov3.pt')
 

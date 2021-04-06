@@ -19,10 +19,11 @@
     - forward return feats is Tuple[feat, ...], if len(feats) > 1, in ascending order align with strides. 
 
 - Encoder
-    - processing feats obtain from backbone
+    - processing features obtained from backbone
     - forward returns new feats: Tuple[Tensor] with format is same as above
     - FPNEncoder
         - output features after processing with (conv_**bn_relu**) 
+        - bn relu problem after|before lateral and top_down features merging ? 
 
 - Decoder
     - processing feats obtain from encoder

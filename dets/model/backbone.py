@@ -63,12 +63,13 @@ class Resnet50(nn.Module):
 
 if __name__ == '__main__':
 
-    data = torch.rand(1, 3, 640, 640)
-    net = resnet50_16(False)
-    print(net(data).shape)
-
 
     net = Resnet50()
-    outs = net(data)    
-    for o in outs:
-        print(o.shape)
+
+    for _ in range(10):
+
+        data = 2 * torch.rand(1, 3, 640, 640) - 1
+        outs = net(data)    
+        for o in outs:
+            print(o.shape)
+            print((o < 0).sum())

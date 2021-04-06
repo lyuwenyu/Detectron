@@ -53,16 +53,17 @@ class FPNEncoder(nn.Module):
         
         # in_channels_list = [512, 1024, 2048]
         # out_channels = 256
-
-        block = lambda c_in, c_out: nn.Sequential(
-            nn.Conv2d(c_in, c_out, 3, 1, 1),
+        num_layers = len(in_channels_list)
+        
+        block = lambda c_in, c_out, k, s, p: nn.Sequential(
+            nn.Conv2d(c_in, c_out, k, s, p),
             nn.BatchNorm2d(c_out),
             nn.ReLU(),
         )
 
-        self.inner_blocks = nn.ModuleList([nn.Conv2d(in_channels, out_channels, 1) for in_channels in in_channels_list])
-        # self.layer_blocks = nn.ModuleList([nn.Conv2d(out_channels, out_channels, 3, 1, 1) for _ in range(len(in_channels_list))])
-        self.layer_blocks = nn.ModuleList([block(out_channels, out_channels) for _ in range(len(in_channels_list))])
+        # self.inner_blocks = nn.ModuleList([nn.Conv2d(in_channels, out_channels, 1) for in_channels in in_channels_list])
+        self.inner_blocks = nn.ModuleList([block(in_channels, out_channels, 1, 1, 0) for in_channels in in_channels_list])
+        self.layer_blocks = nn.ModuleList([block(out_channels, out_channels, 3, 1, 1) for _ in range(num_layers)])
 
         self._init_parameters()
 
@@ -97,4 +98,13 @@ class FPNEncoder(nn.Module):
             outputs.insert(0, self.layer_blocks[i](last_inner))
 
         return outputs
+
+
+class DETREncoder(nn.Module):
+    def __init__(self, ):
+        super.__init__()
+        pass
+    
+    def forward(self, feats):
+        pass
 
