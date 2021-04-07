@@ -56,7 +56,7 @@ class YOLOV3Target(nn.Module):
                 anchors = self.anchors[i].to(pred.device, pred.dtype)
 
                 # x y
-                pred[..., 0:2] = (pred[..., 0:2].sigmoid() + grids.view(1, 1, h, w, 2)) * self.strides[i]
+                pred[..., 0:2] = (pred[..., 0:2].sigmoid() + grids) * self.strides[i]
 
                 # w h
                 if self.wh_mode == 'v3':
@@ -90,7 +90,7 @@ class YOLOV3Target(nn.Module):
     def _make_grid(h, w, device, dtype=torch.float,):
         grid_h, grid_w = torch.meshgrid([torch.arange(h), torch.arange(w)])
         # grid = torch.cat((grid_h.unsqueeze(-1), grid_w.unsqueeze(-1)), dim=-1).to(dtype=pred.dtype, device=pred.device)
-        grid = torch.stack((grid_w, grid_h), 2).view((1, 1, h, w, 2)).to(dtype=dtype, device=device)
+        grid = torch.stack((grid_w, grid_h), 2).view(h, w, 2).to(dtype=dtype, device=device)
         return grid
 
 
@@ -99,7 +99,7 @@ class YOLOV3Target(nn.Module):
         '''
         lcls, lbox, lobj = [torch.zeros(1, device=pred.device) for _ in range(3)]
         
-        tobj = torch.zeros_like(pred[..., 0], device=pred.device)
+        t_obj = torch.zeros_like(pred[..., 0], device=pred.device)
         (im_idx, an_idx, j_idx, i_idx, mask), t_cls, t_xy, t_wh, t_box = self._build_target(pred.detach(), anchors, targets)
 
         if t_cls.shape[0] > 0:
@@ -107,7 +107,7 @@ class YOLOV3Target(nn.Module):
             p = pred[im_idx, an_idx, j_idx, i_idx]
 
             # t_obj
-            tobj[im_idx, an_idx, j_idx, i_idx] = 1.
+            t_obj[im_idx, an_idx, j_idx, i_idx] = 1.
 
             # # p_bbox
             _p_xy = p[:, 0:2].sigmoid()
@@ -136,10 +136,10 @@ class YOLOV3Target(nn.Module):
                 lcls += F.binary_cross_entropy_with_logits(p[:, 5:], _cls, reduction='mean')
         
         # p_obj
-        lobj += F.binary_cross_entropy_with_logits(pred[..., 4], tobj, reduction='mean')
+        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4], tobj, reduction='mean')
         # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][~mask], t_obj[~mask], reduction='mean')
-        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][t_obj==1], t_obj[t_obj==1], reduction='mean')
-        # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][t_obj==0], t_obj[t_obj==0], reduction='mean')
+        lobj += F.binary_cross_entropy_with_logits(pred[..., 4][t_obj==1], t_obj[t_obj==1], reduction='mean')
+        lobj += F.binary_cross_entropy_with_logits(pred[..., 4][t_obj==0], t_obj[t_obj==0], reduction='mean')
         # lobj += F.binary_cross_entropy_with_logits(pred[..., 4][(t_obj==0)&~mask], t_obj[(t_obj==0)&~mask], reduction='mean')
 
         loss = 0.5 * lcls + 0.05 * lbox + lobj
