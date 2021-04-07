@@ -3,6 +3,8 @@ import numpy as np
 import torch
 
 
+# https://giou.stanford.edu/
+
 
 def xywh2xyxy(x):
     # Convert nx4 boxes from [x, y, w, h] to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
@@ -11,7 +13,21 @@ def xywh2xyxy(x):
     y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
+
+    # y[:, [0, 2]] = x[:, [0, 2]] - x[:, [1, 3]] / 2 
+    # y[:, [1, 3]] = x[:, [0, 2]] + x[:, [1, 3]] 
+
     return y
+
+
+
+def xyxy2xywh(x):
+    '''n x 4
+    '''
+    x = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    x0, y0, x1, y1 = x.unbind(-1)
+    b = [(x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0), (y1 - y0)]
+    return torch.stack(b, dim=-1)
 
 
 
@@ -24,7 +40,7 @@ def wh_iou(wh1, wh2):
 
 
 
-def box_iou(box1, box2):
+def box_iou(box1, box2, GIOU=False):
     # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
     """
     Return intersection-over-union (Jaccard index) of boxes.
@@ -36,6 +52,8 @@ def box_iou(box1, box2):
         iou (Tensor[N, M]): the NxM matrix containing the pairwise
             IoU values for every element in boxes1 and boxes2
     """
+    assert (box1[:, 2:] >= box1[:, :2]).all()
+    assert (box2[:, 2:] >= box2[:, :2]).all()
 
     def box_area(box):
         # box = 4xn
@@ -46,7 +64,18 @@ def box_iou(box1, box2):
 
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
     inter = (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2])).clamp(0).prod(2)
-    return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
+    union = area1[:, None] + area2 - inter
+
+    if GIOU:
+        lt = torch.min(box1[:, None, :2], box2[:, :2])
+        rb = torch.max(box1[:, None, 2:], box2[:, 2:])
+        wh = (rb - lt).clamp(min=0)  # [N,M,2]
+        area = wh[:, :, 0] * wh[:, :, 1]
+        return inter / union - (area - union) / area
+    
+    else:
+        return inter / union  # iou = inter / (area1 + area2 - inter)
+
 
 
 
@@ -54,6 +83,8 @@ def box_iou(box1, box2):
 def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-9):
     # Returns the IoU of box1 to box2. box1 is 4, box2 is nx4
     box2 = box2.T
+
+    print(box1.shape, box2.shape)
 
     # Get the coordinates of bounding boxes
     if x1y1x2y2:  # x1, y1, x2, y2 = box1
@@ -94,3 +125,31 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=
             return iou - (c_area - union) / c_area  # GIoU
     else:
         return iou  # IoU
+
+
+
+# https://github.com/facebookresearch/detr/blob/a54b77800eb8e64e3ad0d8237789fcbf2f8350c5/util/box_ops.py#L9
+def masks_to_boxes(masks):
+    """Compute the bounding boxes around the provided masks
+    The masks should be in format [N, H, W] where N is the number of masks, (H, W) are the spatial dimensions.
+    Returns a [N, 4] tensors, with the boxes in xyxy format
+    """
+    if masks.numel() == 0:
+        return torch.zeros((0, 4), device=masks.device)
+
+    h, w = masks.shape[-2:]
+
+    y = torch.arange(0, h, dtype=torch.float)
+    x = torch.arange(0, w, dtype=torch.float)
+    y, x = torch.meshgrid(y, x)
+
+    x_mask = (masks * x.unsqueeze(0))
+    x_max = x_mask.flatten(1).max(-1)[0]
+    x_min = x_mask.masked_fill(~(masks.bool()), 1e8).flatten(1).min(-1)[0]
+
+    y_mask = (masks * y.unsqueeze(0))
+    y_max = y_mask.flatten(1).max(-1)[0]
+    y_min = y_mask.masked_fill(~(masks.bool()), 1e8).flatten(1).min(-1)[0]
+
+    return torch.stack([x_min, y_min, x_max, y_max], 1)
+
