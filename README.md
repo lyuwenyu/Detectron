@@ -1,16 +1,29 @@
 
 # DETECTION
-> as a transduction task, including backbone, encoder, decoder, target .etc.  
-> for rectangle, point, curve, and polygon .etc.
+> as a transduction task, including backbone, encoder, decoder, target .etc.   
+> include rectangle, point, curve, and polygon .etc.  
+> build from scratch for research and education purpose.
 
----
-model | backbone | encoder | decoder
---- | --- | --- | ---
-[YOLOV3]() | - | - | -
-[YOLOV5]() | - | - | -
-[YOLOF]() | - | - | -
-[DETR]() | - | - | -
+## Design
+- Reseach 
+- Education
+- [Document](./docs)
 
---- 
-- [Modified CenterNet](https://github.com/lyuwenyu/pytorch_workspace/tree/master/centernet)
-- [Modified Yolov3](https://github.com/lyuwenyu/pytorch_workspace/tree/master/yolov3)
+## Detector
+model | backbone | encoder | decoder | target | 
+--- | --- | --- | --- | ---
+[YOLOV3]() | - | - | - | 
+[YOLOV5]() | - | - | - | 
+[YOLOF]() | - | - | - | 
+[DETR]() | - | - | - | 
+|
+
+
+
+## Reference 
+- Modified Yolov3
+    - https://github.com/lyuwenyu/pytorch_workspace/yolov3
+- Modified CenterNet
+    - https://github.com/lyuwenyu/pytorch_workspace/centernet
+- YOLOV5
+    - https://github.com/ultralytics/yolov5
