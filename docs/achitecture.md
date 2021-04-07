@@ -3,7 +3,7 @@
 
 ## Settings
 - Default
-    - images (tensor, shape=(n, c, h, w))
+    - images (tensor, shape=(n, c, h, w)), [0 - 1]
     - targets (tensor, shape=(n, 6)): [[im-idx, cls-id, x, y, w, h,], ...], where (x, y, w, h) belong to [0, 1], im-idx is image index in batch 
     - anchors (tensor, shape=[layer_num, anchor_num]): ((w, h), ...), ...), where layer_num is equal to features num for detection, (w, h) is value respecting to origin image size
     - strides (list, ): [8, 16, 32], where strides is in ascending order.
