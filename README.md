@@ -12,11 +12,13 @@
 ## Detector
 model | backbone | encoder | decoder | target | 
 --- | --- | --- | --- | ---
-[YOLOV3]() | - | - | - | 
-[YOLOV5]() | - | - | - | 
-[YOLOF]() | - | - | - | 
-[DETR]() | - | - | - | 
-|
+[SSD]() | - | - | - 
+[YOLOV3]() | - | - | - 
+[YOLOV5]() | - | - | - 
+[YOLOF]() | - | - | - 
+[CenterNet]() | - | - | - 
+[DETR](https://arxiv.org/pdf/2005.12872.pdf) | - | - | -  
+
 
 
 
