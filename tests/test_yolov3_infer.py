@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 
 
-dataset = DatasetYolov5('~/Desktop/workspace/dataset/coco128/images/train2017/')
+dataset = DatasetYolov5('../../dataset/coco128/images/train2017/')
 
 _im = dataset[0][0]
 

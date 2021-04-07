@@ -37,7 +37,7 @@ targets[:, 3:] = targets[:, 3:]
 
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
-dataset = DatasetYolov5('~/Desktop/workspace/dataset/coco128/images/train2017/')
+dataset = DatasetYolov5('../../dataset/coco128/images/train2017/')
 dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn)
 
 yolov3 = YOLOV3Detector().to(device=device)
