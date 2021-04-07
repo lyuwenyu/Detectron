@@ -46,7 +46,21 @@ class YOLOFDetector(nn.Module):
 class DETRDetector(nn.Module):
     '''
     '''
-    pass
+    def __init__(self, cfg=None):
+        super().__init__()
+
+        _backbone = backbone.Resnet50(False, num_layers=1)
+        _encoder = encoder.DETREncoder()
+    
+        self.model = nn.ModuleList([_backbone, _encoder,])
+
+
+    def forward(self, data):
+
+        for m in self.model:
+            data = m(data)
+
+        return data
 
 
 

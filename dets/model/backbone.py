@@ -43,13 +43,18 @@ def darknet(pretrained=False):
 
 
 class Resnet50(nn.Module):
-    def __init__(self, pretrained=False):
+    def __init__(self, pretrained=False, num_layers=3):
         super().__init__()
         net = models.resnet50(pretrained=pretrained)    
         net = nn.Sequential(*list(net.children())[:-2]) 
 
+        out_channels_list = [512, 1024, 2048]
+
         self.net = net
-        self.out_channels_list = [512, 1024, 2048]
+
+        assert isinstance(num_layers, int) and num_layers <= 3, ''
+        self.num_layers = num_layers
+        self.out_channels_list = out_channels_list[-num_layers:]
 
     def forward(self, data):
         
@@ -58,7 +63,8 @@ class Resnet50(nn.Module):
             data = m(data)
             outputs.append(data)
 
-        return outputs[-3:]
+        return outputs[-self.num_layers:]
+
 
 
 if __name__ == '__main__':
