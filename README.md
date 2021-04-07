@@ -1,6 +1,6 @@
 
 # DETECTION
-> as a transduction task, including backbone, encoder, decoder, target .etc.
+> as a transduction task, including backbone, encoder, decoder, target .etc.  
 > for Rectangle, Point, Curve, Polygon. etc.
 
 ---
