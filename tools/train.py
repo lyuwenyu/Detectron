@@ -30,13 +30,15 @@ def train(epoch, model, dataloader, optimizer):
 
         losses.append(loss.item())
         if i % 10 == 0:
-            print(epoch, i, np.mean(losses))
-            losses = []
+            print(epoch, i, np.mean(losses[i-9:i+1]))
+            # losses.clear()
 
 
 
 
 def test(model, dataloader, ):
+    model.eval()
+
     pass
 
 
