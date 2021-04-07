@@ -10,7 +10,7 @@ import dets
 from dets.data.dataset import DatasetYolov5
 
 
-dataset = DatasetYolov5('/Users/lvwenyu01/Desktop/workspace/dataset/coco128/images/train2017/')
+dataset = DatasetYolov5('~/Desktop/workspace/dataset/coco128/images/train2017/')
 dataloader = DataLoader(dataset, batch_size=3, collate_fn=dataset.collate_fn)
 
 
