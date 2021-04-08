@@ -8,8 +8,7 @@ from .bbox import xywh2xyxy, box_iou
 
 
 # https://github.com/ultralytics/yolov5/blob/master/utils/general.py#L415
-def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
-                        labels=()):
+def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False, labels=()):
     """Runs Non-Maximum Suppression (NMS) on inference results
 
     Returns:

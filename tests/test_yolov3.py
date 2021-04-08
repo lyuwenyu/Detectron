@@ -26,14 +26,15 @@ data = torch.rand(1, 3, 640, 640)
 targets[:, 3:] = targets[:, 3:]
 
 
-
-# output = yolov3(data, targets)
-# try:
-#     print(output.shape, output.sum())
-# except:
-#     print(output['loss'].item())
+output = yolov3(data, targets)
+try:
+    print(output.shape, output.sum())
+except:
+    print(output['loss'].item())
 
 # print(yolov3)
+
+
 
 device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -51,7 +52,6 @@ for p in yolov3.model[0].parameters():
 
 optimizer = optim.SGD(yolov3.parameters(), lr=0.01, momentum=0.9)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.5)
-
 
 
 for _ in range(3):

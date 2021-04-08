@@ -19,7 +19,7 @@ detr = DETRDetector()
 print(detr)
 
 
-data = torch.rand(8, 3, 1024, 640)
+data = torch.rand(2, 3, 1024, 640)
 
 outputs = detr(data)
 

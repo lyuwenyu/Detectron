@@ -11,7 +11,8 @@ class PriorBox(object):
         '''
         img_size [w, h]
         stride [8, 16, 32]
-
+        returns:
+            [(w/8 * h/8) * a * 4, (w/16 * h/16) * a * 4]
         '''
         if not isinstance(img_size, (list, tuple)):
             img_size = (img_size, img_size)
@@ -23,10 +24,10 @@ class PriorBox(object):
         self.strides = strides
 
         # anchor size
-        self.base_sizes = [(60, 60), (120, 120), (180, 180)]
+        self.base_sizes = [(60, 60), (160, 160), (320, 320)]
         self.aspect_rarios = [(2, ), (2, ), (2, )]
         self.area_rarios = [(2, ), (2, ), (2, )]
-
+        self.num_anchors = [5, 5, 5]
 
     def __call__(self, ):
         '''
@@ -40,6 +41,7 @@ class PriorBox(object):
             grid_w = int(self.img_size[0] / s)
             grid_h = int(self.img_size[1] / s)
 
+            # np.meshgrid is different from torch.meshgrid
             gi, gj = np.meshgrid(range(grid_w), range(grid_h))
 
             cx = (gi + 0.5) / grid_w
@@ -71,7 +73,6 @@ class PriorBox(object):
             anchors += [priors.reshape(-1, 4)]
 
         anchors = np.concatenate(anchors, axis=0)
-        # anchors = torch.from_numpy(anchors).to(dtype=torch.float)
 
         return anchors
 

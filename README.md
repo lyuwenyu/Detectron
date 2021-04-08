@@ -29,3 +29,6 @@ model | backbone | encoder | decoder | target |
     - https://github.com/lyuwenyu/pytorch_workspace/centernet
 - YOLOV5
     - https://github.com/ultralytics/yolov5
+- DETR
+    - https://github.com/facebookresearch/detr/
+    

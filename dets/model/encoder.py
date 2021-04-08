@@ -45,8 +45,6 @@ class DilatedEncoder(nn.Module):
 
 
 
-
-
 class FPNEncoder(nn.Module):
     def __init__(self, in_channels_list, out_channels):
         super().__init__()
@@ -100,43 +98,4 @@ class FPNEncoder(nn.Module):
         return outputs
 
 
-class DETREncoder(nn.Module):
-    def __init__(self, ):
-        super().__init__()
-        
-        in_channels = 2048
-        hidden_dim = 256
-        num_classes = 80
 
-        self.conv = nn.Conv2d(in_channels, hidden_dim, 1, 1)
-        self.transformer = nn.Transformer(hidden_dim, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
-
-        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
-        self.linear_bbox = nn.Linear(hidden_dim, 4)
-
-        self.num_query = 100
-        self.query_pos = nn.Parameter(torch.rand(100, hidden_dim))
-        self.row_embed = nn.Parameter(torch.rand(50, hidden_dim//2))
-        self.col_embed = nn.Parameter(torch.rand(50, hidden_dim//2))
-
-
-    def forward(self, feats):
-        '''
-        '''
-        if not isinstance(feats, (list, tuple)):
-            feats = (feats, )
-
-        assert len(feats) == 1, ''
-
-        hidden = self.conv(feats[0])
-        # n c h w -> l<h * w> n c
-        _n, _c, _h, _w = hidden.shape
-        pos = torch.cat([
-            self.col_embed[:_w].unsqueeze(0).repeat(_h, 1, 1), 
-            self.row_embed[:_h].unsqueeze(1).repeat(1, _w, 1)], 
-            dim=-1).view(_h * _w, 1, _c) # flatten(0, 1).unsqueeze(1)
-
-        # l_scr<_h * _w> -> l_trg<100> 
-        hidden = self.transformer(pos + hidden.view(_n, _c, -1).permute(2, 0, 1), self.query_pos.unsqueeze(1).repeat(1, _n, 1))
-
-        return self.linear_class(hidden), self.linear_bbox(hidden).sigmoid()

@@ -7,7 +7,8 @@ import math
 
 from collections import defaultdict
 
-from ..utils.bbox import wh_iou, bbox_iou
+from ..utils.bbox import wh_iou, box_iou, bbox_iou
+from ..utils.anchor import PriorBox
 
 
 class YOLOV3Target(nn.Module):
@@ -198,15 +199,134 @@ class SSDTarget(nn.Module):
     def __init__(self, cfg):
         super().__init__()
 
-        prior_bbox = []
+        img_size = 640
+        num_classes = 80
+        num_anchors = [5, 5, 5, ]
+        num_outputs = num_classes + 1 + 4
 
-        self.register_buffer('prior_bbox', prior_bbox)
+        self.strides = [8, 16, 32]
+        self.num_anchors = num_anchors
+        self.num_outputs = num_outputs
+
+        self.iou_threshold = 0.5 
+        self.neg_ratio = 3.0 
+
+        priors = PriorBox(img_size=img_size, strides=self.strides)()
+        priors = torch.from_numpy(priors)
+        self.register_buffer('priors', priors)
 
 
     def forward(self, feats, targets=None):
         '''
         '''
-        if not isinstance(preds, (tuple, list)):
-            preds = (preds, )
+        if not isinstance(feats, (tuple, list)):
+            feats = (feats, )
         
+        preds = self.merge_feats(feats)
+        priors = self.priors.to(preds.device, dtype=preds.dtype)
+
+        losses = defaultdict(int)
+
+        if targets is None:
+            preds[:, :, 0:2] = preds[:, :, 0:2] * priors[:, :2] + priors[:, :2]
+            preds[:, :, 2:4] = preds[:, :, 2:4].exp() * priors[:, 2:4]
+            preds[:, :, 4:] = F.softmax(preds[:, :, 4:], dim=-1)
+            return preds
+    
+        else:
+
+            loss, lbox, lcls = self._compute_loss(preds, priors, targets)
+            losses['loss'] += loss
+            losses['lcls'] += lcls.item()
+            losses['lbox'] += lbox.item()
+
+            return losses
+
+
+    def merge_feats(self, feats):
+        '''align with prior/anchor box
+        '''
+        _feats = []
+        for i, feat in enumerate(feats):
+            n, _, h, w = feat.shape
+            feat = feat.view(n, self.num_anchors[i], -1, h * w).permute(0, 3, 1, 2).contiguous()
+            feat = feat.view(n, h * w * self.num_anchors[i], -1)
+            _feats.append(feat)
+
+        return torch.cat(_feats, dim=1)
+
+
+    def _compute_loss(self, preds, priors, targets):
+        '''
+        '''
+        lcls, lbox = [torch.zeros(1, device=preds.device) for _ in range(2)]
+
+        for i in range(preds.shape[0]):
+            pred = preds[i]
+            target = targets[targets[:, 0] == i]
+
+            if target.shape[0]:
+                t_bbox, t_cls = self._build_target(target, priors)
+
+                pos_idx = t_cls > 0
+                num_pos = pos_idx.sum()
+
+                if num_pos > 0: 
+                    lbox += F.smooth_l1_loss(pred[:, :4][pos_idx], t_bbox[pos_idx])
+
+                # hear neg mining
+                with torch.no_grad():
+
+                    loss_c = torch.logsumexp(pred[:, 4:], dim=-1) - pred[:, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
+                    loss_c[pos_idx] = 0
+                    
+                    _, loss_idx = loss_c.sort(dim=-1, descending=True)
+                    _, idx_rank = loss_idx.sort(dim=-1)
+
+                    num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos - 1)
+                    neg_idx = idx_rank < num_neg
+
+                lcls += F.cross_entropy(pred[:, 4:][pos_idx + neg_idx], t_cls[pos_idx + neg_idx].long())
+
+        return lbox + lcls * 0.1, lbox, lcls * 0.1
+
+
+    def _build_target(self, target, priors, eps=1e-9):
+        ''' 
+        '''
+        ious = box_iou(target[:, 2:], priors, x1y1x2y2=False)
+        
+        _, best_prior_idx = ious.max(1) # best prior for each gt
+        best_gt_overlap, best_gt_idx = ious.max(0) # best gt for each prior
+
+        best_gt_overlap.index_fill_(0, best_prior_idx, 1) # for threshold 
+        for j in range(best_prior_idx.shape[0]):
+            best_gt_overlap[best_prior_idx[j]] = j 
+        
+        bbox = target[best_gt_idx][:, 2:]
+
+        # labels target
+        clss = target[best_gt_idx][:, 1] + 1
+        clss[best_gt_overlap < self.iou_threshold] = 0 # bg
+
+        # center offet target
+        t_xy = bbox[:, :2] - priors[:, :2]
+        t_xy /= priors[:, 2:] 
+
+        # w h target
+        t_wh = bbox[:, 2:] / priors[:, 2:] # HERE. must larger than 0
+        t_wh = torch.log(t_wh)
+
+        # cx cy w h target
+        locs = torch.cat((t_xy, t_wh), dim=1)
+                
+        return locs, clss
+
+
+
+
+class DETRTarget(nn.Module):
+    def __init__(self, cfg):
+        super().__init__()
         pass
+    

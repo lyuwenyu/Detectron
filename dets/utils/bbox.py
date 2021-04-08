@@ -40,7 +40,7 @@ def wh_iou(wh1, wh2):
 
 
 
-def box_iou(box1, box2, GIOU=False):
+def box_iou(box1, box2, x1y1x2y2=True, GIOU=False):
     # https://github.com/pytorch/vision/blob/master/torchvision/ops/boxes.py
     """
     Return intersection-over-union (Jaccard index) of boxes.
@@ -52,8 +52,12 @@ def box_iou(box1, box2, GIOU=False):
         iou (Tensor[N, M]): the NxM matrix containing the pairwise
             IoU values for every element in boxes1 and boxes2
     """
-    assert (box1[:, 2:] >= box1[:, :2]).all()
-    assert (box2[:, 2:] >= box2[:, :2]).all()
+    # assert (box1[:, 2:] >= box1[:, :2]).all()
+    # assert (box2[:, 2:] >= box2[:, :2]).all()
+
+    if not x1y1x2y2:
+        box1 = xywh2xyxy(box1)
+        box2 = xywh2xyxy(box2)
 
     def box_area(box):
         # box = 4xn
@@ -83,8 +87,6 @@ def box_iou(box1, box2, GIOU=False):
 def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-9):
     # Returns the IoU of box1 to box2. box1 is 4, box2 is nx4
     box2 = box2.T
-
-    print(box1.shape, box2.shape)
 
     # Get the coordinates of bounding boxes
     if x1y1x2y2:  # x1, y1, x2, y2 = box1

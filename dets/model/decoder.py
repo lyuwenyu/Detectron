@@ -105,10 +105,85 @@ class RetinaDecoder(nn.Module):
 
 
 
+class SSDDecoder(nn.Module):
+    '''
+    '''
+    def __init__(self, cfg=None):
+        super().__init__()
+
+        num_classes = 80
+        num_anchors = [5, 5, 5]
+        num_layers = 3
+
+        in_channels = 256
+        out_channels_list = [(4 + 1 + num_classes) * a for a in num_anchors]
+
+        block = lambda c_in, c_out: nn.Sequential(
+            nn.Conv2d(c_in, c_in, 3, 1, 1),
+            nn.BatchNorm2d(c_in),
+            nn.ReLU(),
+            nn.Conv2d(c_in, c_out, 1, 1, 0),
+        )
+        self.model = nn.ModuleList([block(in_channels, o) for o in out_channels_list])
+
+
+    def forward(self, feats):
+        if not isinstance(feats, (tuple, list)):
+            feats = (feats, )
+
+        outputs = []
+        for m, feat in zip(self.model, feats):
+            outputs.append(m(feat))
+        
+        return outputs
+
+        
+
+
+
 class DETRDecoder(nn.Module):
     def __init__(self, ):
-        super.__init__()
-        pass
-    
+        super().__init__()
+        
+        in_channels = 2048
+        hidden_dim = 256
+        num_classes = 80
+        num_query = 100
+
+        self.conv = nn.Conv2d(in_channels, hidden_dim, 1, 1)
+        self.transformer = nn.Transformer(hidden_dim, nhead=8, num_encoder_layers=6, num_decoder_layers=6)
+
+        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
+        self.linear_bbox = nn.Linear(hidden_dim, 4)
+
+        self.num_query = num_query
+        self.query_pos = nn.Parameter(torch.rand(num_query, hidden_dim))
+        self.row_embed = nn.Parameter(torch.rand(50, hidden_dim//2))
+        self.col_embed = nn.Parameter(torch.rand(50, hidden_dim//2))
+        # self.row_embed = nn.Embedding(50, hidden_dim//2)
+        # self.col_embed = nn.Embedding(50, hidden_dim//2)
+
+
     def forward(self, feats):
-        pass
+        '''
+        '''
+        if not isinstance(feats, (list, tuple)):
+            feats = (feats, )
+
+        assert len(feats) == 1, ''
+
+        hidden = self.conv(feats[0])
+        # n c h w -> l<h * w> n c
+        _n, _c, _h, _w = hidden.shape
+        pos = torch.cat([
+            self.col_embed[:_w].unsqueeze(0).repeat(_h, 1, 1), 
+            self.row_embed[:_h].unsqueeze(1).repeat(1, _w, 1)], 
+            dim=-1).view(_h * _w, 1, _c) # flatten(0, 1).unsqueeze(1)
+
+        # l_scr<_h * _w> -> l_trg<100> 
+        hidden = self.transformer(pos + hidden.view(_n, _c, -1).permute(2, 0, 1), self.query_pos.unsqueeze(1).repeat(1, _n, 1))
+
+        return self.linear_class(hidden), self.linear_bbox(hidden).sigmoid()
+
+
+    

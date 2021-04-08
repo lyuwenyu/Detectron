@@ -33,7 +33,7 @@ out = ssd(im)
 print(out.shape)
 print(out.sum())
 
-out = non_max_suppression(out, conf_thres=1e-1, iou_thres=0.01, multi_label=True)
+# out = non_max_suppression(out, conf_thres=1e-1, iou_thres=0.01, multi_label=True)
 
 # plt.imshow(_im[0].transpose(1, 2, 0) * dataset.std + dataset.mean)
 # plt.show()
@@ -41,9 +41,11 @@ print(out[0].shape)
 print(out)
 
 out = out[0].cpu().detach().numpy()
+print(out[:10, 4:])
+
 out = out[:, :4] * 640
-# out[:, [0, 1]] = out[:, [0, 1]] - out[:, [2, 3]] / 2
-# out[:, [2, 3]] = out[:, [0, 1]] + out[:, [2, 3]]
+out[:, [0, 1]] = out[:, [0, 1]] - out[:, [2, 3]] / 2
+out[:, [2, 3]] = out[:, [0, 1]] + out[:, [2, 3]]
 np.clip(out, 0, 640-1, out=out) 
 
 
