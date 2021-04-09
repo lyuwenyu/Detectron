@@ -207,6 +207,7 @@ class SSDTarget(nn.Module):
         self.strides = [8, 16, 32]
         self.num_anchors = num_anchors
         self.num_outputs = num_outputs
+        self.num_classes = num_classes
 
         self.iou_threshold = 0.5 
         self.neg_ratio = 3.0 
@@ -249,8 +250,8 @@ class SSDTarget(nn.Module):
         _feats = []
         for i, feat in enumerate(feats):
             n, _, h, w = feat.shape
-            feat = feat.view(n, self.num_anchors[i], -1, h * w).permute(0, 3, 1, 2).contiguous()
-            feat = feat.view(n, h * w * self.num_anchors[i], -1)
+            feat = feat.view(n, self.num_anchors[i], -1, h, w).permute(0, 1, 3, 4, 2).contiguous()
+            feat = feat.view(n, self.num_anchors[i] * h * w, -1)
             _feats.append(feat)
 
         return torch.cat(_feats, dim=1)
@@ -260,6 +261,7 @@ class SSDTarget(nn.Module):
         '''
         '''
         lcls, lbox = [torch.zeros(1, device=preds.device) for _ in range(2)]
+        _t_cls = torch.eye(self.num_classes + 1).to(preds.device, )
 
         for i in range(preds.shape[0]):
             pred = preds[i]
@@ -276,7 +278,7 @@ class SSDTarget(nn.Module):
 
                 # hear neg mining
                 with torch.no_grad():
-
+                    # -log(p) => -log(softmax(a)) => -log(softmax(a)) => logsumexp(a) - a[t_cls]
                     loss_c = torch.logsumexp(pred[:, 4:], dim=-1) - pred[:, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
                     loss_c[pos_idx] = 0
                     
@@ -286,9 +288,10 @@ class SSDTarget(nn.Module):
                     num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos - 1)
                     neg_idx = idx_rank < num_neg
 
-                lcls += F.cross_entropy(pred[:, 4:][pos_idx + neg_idx], t_cls[pos_idx + neg_idx].long())
+                # lcls += F.cross_entropy(pred[:, 4:][pos_idx + neg_idx], t_cls[pos_idx + neg_idx].long())
+                lcls += F.binary_cross_entropy_with_logits(pred[pos_idx + neg_idx, 4:], _t_cls[t_cls[pos_idx + neg_idx].long()])
 
-        return lbox + lcls * 0.1, lbox, lcls * 0.1
+        return lbox + lcls, lbox, lcls 
 
 
     def _build_target(self, target, priors, eps=1e-9):

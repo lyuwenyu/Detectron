@@ -64,15 +64,21 @@ class PriorBox(object):
 
             whs = np.array(whs)
 
-            priors = np.zeros((np.prod(cx.shape), len(whs), 4))
-
-            priors[:, :, 0] = cx.reshape(-1, 1)
-            priors[:, :, 1] = cy.reshape(-1, 1)
-            priors[:, :, 2:] = whs.reshape(-1, 2)
+            # priors = np.zeros((np.prod(cx.shape), len(whs), 4))
+            # priors[:, :, 0] = cx.reshape(-1, 1)
+            # priors[:, :, 1] = cy.reshape(-1, 1)
+            # priors[:, :, 2:] = whs.reshape(-1, 2)
+            
+            #  a h w 4
+            priors = np.zeros((len(whs), np.prod(cx.shape), 4))
+            priors[:, :, 0] = cx.reshape(1, -1)
+            priors[:, :, 1] = cy.reshape(1, -1)
+            priors[:, :, 2:] = whs.reshape(-1, 1, 2)
 
             anchors += [priors.reshape(-1, 4)]
 
         anchors = np.concatenate(anchors, axis=0)
+
 
         return anchors
 
