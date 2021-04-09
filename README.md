@@ -1,5 +1,5 @@
 
-# DETECTION
+# DetectionL
 > as a transduction task, including backbone, encoder, decoder, target .etc.   
 > include rectangle, point, curve, and polygon .etc.  
 > build from scratch for research and education purpose.
@@ -10,8 +10,8 @@
 - [Document](./docs)
 
 ## Detector
-model | backbone | encoder | decoder | target | 
---- | --- | --- | --- | ---
+model | backbone | encoder | decoder | target | performance
+--- | --- | --- | --- | --- | ---
 [SSD]() | - | - | - 
 [YOLOV3]() | - | - | - 
 [YOLOV5]() | - | - | - 

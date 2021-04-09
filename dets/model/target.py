@@ -223,7 +223,7 @@ class SSDTarget(nn.Module):
         if not isinstance(feats, (tuple, list)):
             feats = (feats, )
         
-        preds = self.merge_feats(feats)
+        preds = self.merge_features(feats)
         priors = self.priors.to(preds.device, dtype=preds.dtype)
 
         losses = defaultdict(int)
@@ -246,7 +246,7 @@ class SSDTarget(nn.Module):
             return losses
 
 
-    def merge_feats(self, feats):
+    def merge_features(self, feats):
         '''align with prior/anchor box
         '''
         _feats = []
@@ -256,7 +256,6 @@ class SSDTarget(nn.Module):
             feat = feat.view(n, self.num_anchors[i] * h * w, -1)
             # feat = feat.view(n, self.num_anchors[i], -1, h, w).permute(0, 3, 4, 1, 2).contiguous()
             # feat = feat.view(n, h * w * self.num_anchors[i], -1)
-
             _feats.append(feat)
 
         return torch.cat(_feats, dim=1)
@@ -268,7 +267,7 @@ class SSDTarget(nn.Module):
         dtype, device = preds.dtype, preds.device
         n, m, _ = preds.shape
         
-        lcls, lbox = [torch.zeros(1, device=device) for _ in range(2)]
+        lcls, lobj, lbox = [torch.zeros(1, device=device) for _ in range(3)]
         
         t_xy, t_wh = [torch.zeros(n, m, 2).to(dtype=dtype, device=device) for _ in range(2)]
         t_cls = torch.zeros(n, m).to(dtype=dtype, device=device)
@@ -296,7 +295,7 @@ class SSDTarget(nn.Module):
 
             num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos)
             neg_idx = idx_rank < num_neg
-                            
+
         lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
         lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
 

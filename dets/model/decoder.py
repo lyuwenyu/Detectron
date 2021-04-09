@@ -122,6 +122,10 @@ class SSDDecoder(nn.Module):
             nn.Conv2d(c_in, c_in, 3, 1, 1),
             nn.BatchNorm2d(c_in),
             nn.ReLU(),
+            nn.Conv2d(c_in, c_in, 3, 1, 1),
+            nn.BatchNorm2d(c_in),
+            nn.ReLU(),
+            
             nn.Conv2d(c_in, c_out, 1, 1, 0),
         )
         self.model = nn.ModuleList([block(in_channels, o) for o in out_channels_list])
