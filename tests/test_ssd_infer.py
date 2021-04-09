@@ -30,26 +30,29 @@ ssd.load_state_dict(torch.load('./ssd.pt'))
 ssd.eval()
 
 out = ssd(im)
-print(out.sum())
-out = out[0].cpu().detach().numpy()
-print(out.shape)
 
-# out[:, :, 4:5] = 1 - out[:, :, 4:5]
-# out = non_max_suppression(out, conf_thres=0.4, iou_thres=0.2, multi_label=False)
+if True:
+    
+    out = out[0].cpu().detach().numpy()
+    print(out.shape)
 
-# plt.imshow(_im[0].transpose(1, 2, 0) * dataset.std + dataset.mean)
-# plt.show()
+    print((out[:, 4:].argmax(axis=-1) > 0).sum())
+
+    out = out[out[:, 4:].argmax(axis=-1) > 0]
+
+    out = out[:, :4] * 640
+    out[:, [0, 1]] = out[:, [0, 1]] - out[:, [2, 3]] / 2
+    out[:, [2, 3]] = out[:, [0, 1]] + out[:, [2, 3]]
+    np.clip(out, 0, 640-1, out=out) 
 
 
-print((out[:, 4:].argmax(axis=-1) > 0).sum())
+else:
+    
+    out = non_max_suppression(out, conf_thres=0.4, iou_thres=0.2, multi_label=False)
+    out = out[0].cpu().detach().numpy()
+    out = out[:, :4] * 640
 
-out = out[out[:, 4:].argmax(axis=-1) > 0]
-
-# out = out[0].cpu().detach().numpy()
-out = out[:, :4] * 640
-out[:, [0, 1]] = out[:, [0, 1]] - out[:, [2, 3]] / 2
-out[:, [2, 3]] = out[:, [0, 1]] + out[:, [2, 3]]
-np.clip(out, 0, 640-1, out=out) 
+    np.clip(out, 0, 640-1, out=out) 
 
 
 im = Image.fromarray( ((_im[0].transpose(1, 2, 0) * dataset.std + dataset.mean) * 255).astype(np.uint8) )
