@@ -12,7 +12,7 @@
 ## Detector
 model | backbone | encoder | decoder | target | performance
 --- | --- | --- | --- | --- | ---
-[SSD]() | - | - | - 
+[SSD](https://arxiv.org/pdf/1611.10012.pdf) | - | - | - 
 [YOLOV3]() | - | - | - 
 [YOLOV5]() | - | - | - 
 [YOLOF]() | - | - | - 
