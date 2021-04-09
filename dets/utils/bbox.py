@@ -14,8 +14,8 @@ def xywh2xyxy(x):
     y[:, 2] = x[:, 0] + x[:, 2] / 2  # bottom right x
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
 
-    # y[:, [0, 2]] = x[:, [0, 2]] - x[:, [1, 3]] / 2 
-    # y[:, [1, 3]] = x[:, [0, 2]] + x[:, [1, 3]] 
+    # y[:, [0, 2]] = y[:, [0, 2]] - y[:, [1, 3]] / 2 
+    # y[:, [1, 3]] = y[:, [0, 2]] + y[:, [1, 3]] 
 
     return y
 
@@ -76,7 +76,6 @@ def box_iou(box1, box2, x1y1x2y2=True, GIOU=False):
         wh = (rb - lt).clamp(min=0)  # [N,M,2]
         area = wh[:, :, 0] * wh[:, :, 1]
         return inter / union - (area - union) / area
-    
     else:
         return inter / union  # iou = inter / (area1 + area2 - inter)
 

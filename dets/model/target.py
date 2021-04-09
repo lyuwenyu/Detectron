@@ -210,7 +210,7 @@ class SSDTarget(nn.Module):
         self.num_classes = num_classes
 
         self.iou_threshold = 0.5 
-        self.neg_ratio = 3.0 
+        self.neg_ratio = 1.0 
 
         priors = PriorBox(img_size=img_size, strides=self.strides)()
         priors = torch.from_numpy(priors)
@@ -229,9 +229,11 @@ class SSDTarget(nn.Module):
         losses = defaultdict(int)
 
         if targets is None:
-            preds[:, :, 0:2] = preds[:, :, 0:2] * priors[:, :2] + priors[:, :2]
-            preds[:, :, 2:4] = preds[:, :, 2:4].exp() * priors[:, 2:4]
+            preds[:, :, 0:2] = preds[:, :, :2] * priors[:, 2:] + priors[:, :2]
+            preds[:, :, 2:4] = preds[:, :, 2:4].exp() * priors[:, 2:]
             preds[:, :, 4:] = F.softmax(preds[:, :, 4:], dim=-1)
+            # preds[:, :, 4:] = preds[:, :, 4:].sigmoid()
+
             return preds
     
         else:
@@ -252,6 +254,9 @@ class SSDTarget(nn.Module):
             n, _, h, w = feat.shape
             feat = feat.view(n, self.num_anchors[i], -1, h, w).permute(0, 1, 3, 4, 2).contiguous()
             feat = feat.view(n, self.num_anchors[i] * h * w, -1)
+            # feat = feat.view(n, self.num_anchors[i], -1, h, w).permute(0, 3, 4, 1, 2).contiguous()
+            # feat = feat.view(n, h * w * self.num_anchors[i], -1)
+
             _feats.append(feat)
 
         return torch.cat(_feats, dim=1)
@@ -260,36 +265,40 @@ class SSDTarget(nn.Module):
     def _compute_loss(self, preds, priors, targets):
         '''
         '''
-        lcls, lbox = [torch.zeros(1, device=preds.device) for _ in range(2)]
-        _t_cls = torch.eye(self.num_classes + 1).to(preds.device, )
+        dtype, device = preds.dtype, preds.device
+        n, m, _ = preds.shape
+        
+        lcls, lbox = [torch.zeros(1, device=device) for _ in range(2)]
+        
+        t_xy, t_wh = [torch.zeros(n, m, 2).to(dtype=dtype, device=device) for _ in range(2)]
+        t_cls = torch.zeros(n, m).to(dtype=dtype, device=device)
 
         for i in range(preds.shape[0]):
-            pred = preds[i]
             target = targets[targets[:, 0] == i]
-
             if target.shape[0]:
-                t_bbox, t_cls = self._build_target(target, priors)
+                t_xy[i], t_wh[i], t_cls[i] = self._build_target(target, priors)     
+        
+        pos_idx = t_cls > 0
+        num_pos = pos_idx.sum()
+        
+        if num_pos > 0: 
+            lbox += F.smooth_l1_loss(preds[pos_idx][:, 0:2], t_xy[pos_idx], reduction='mean')
+            lbox += F.smooth_l1_loss(preds[pos_idx][:, 2:4], t_wh[pos_idx], reduction='mean')
 
-                pos_idx = t_cls > 0
-                num_pos = pos_idx.sum()
+        # hard neg mining
+        with torch.no_grad():
+            # loss = -log(p) => -log(softmax(a)) => logsumexp(a) - a[t_cls]
+            loss_c = torch.logsumexp(preds[:, :, 4:], dim=-1) - preds[:, :, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
+            loss_c[pos_idx] = 0
 
-                if num_pos > 0: 
-                    lbox += F.smooth_l1_loss(pred[:, :4][pos_idx], t_bbox[pos_idx])
+            _, loss_idx = loss_c.sort(dim=-1, descending=True)
+            _, idx_rank = loss_idx.sort(dim=-1)
 
-                # hear neg mining
-                with torch.no_grad():
-                    # -log(p) => -log(softmax(a)) => -log(softmax(a)) => logsumexp(a) - a[t_cls]
-                    loss_c = torch.logsumexp(pred[:, 4:], dim=-1) - pred[:, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
-                    loss_c[pos_idx] = 0
-                    
-                    _, loss_idx = loss_c.sort(dim=-1, descending=True)
-                    _, idx_rank = loss_idx.sort(dim=-1)
-
-                    num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos - 1)
-                    neg_idx = idx_rank < num_neg
-
-                # lcls += F.cross_entropy(pred[:, 4:][pos_idx + neg_idx], t_cls[pos_idx + neg_idx].long())
-                lcls += F.binary_cross_entropy_with_logits(pred[pos_idx + neg_idx, 4:], _t_cls[t_cls[pos_idx + neg_idx].long()])
+            num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos)
+            neg_idx = idx_rank < num_neg
+                            
+        lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
+        lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
 
         return lbox + lcls, lbox, lcls 
 
@@ -298,7 +307,7 @@ class SSDTarget(nn.Module):
         ''' 
         '''
         ious = box_iou(target[:, 2:], priors, x1y1x2y2=False)
-        
+
         _, best_prior_idx = ious.max(1) # best prior for each gt
         best_gt_overlap, best_gt_idx = ious.max(0) # best gt for each prior
 
@@ -313,17 +322,12 @@ class SSDTarget(nn.Module):
         clss[best_gt_overlap < self.iou_threshold] = 0 # bg
 
         # center offet target
-        t_xy = bbox[:, :2] - priors[:, :2]
-        t_xy /= priors[:, 2:] 
+        t_xy = (bbox[:, :2] - priors[:, :2]) / priors[:, 2:] 
 
         # w h target
-        t_wh = bbox[:, 2:] / priors[:, 2:] # HERE. must larger than 0
-        t_wh = torch.log(t_wh)
-
-        # cx cy w h target
-        locs = torch.cat((t_xy, t_wh), dim=1)
+        t_wh = torch.log(bbox[:, 2:] / priors[:, 2:]) # HERE. must larger than 0
                 
-        return locs, clss
+        return t_xy, t_wh, clss
 
 
 

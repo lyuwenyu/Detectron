@@ -46,9 +46,9 @@ yolov3.train()
 
 # optimizer = optim.Adam(yolov3.parameters(), lr=0.001)
 
-yolov3.model[0].eval()
-for p in yolov3.model[0].parameters():
-    p.requires_grad = False
+# yolov3.model[0].eval()
+# for p in yolov3.model[0].parameters():
+#     p.requires_grad = False
 
 optimizer = optim.SGD(yolov3.parameters(), lr=0.01, momentum=0.9)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.5)

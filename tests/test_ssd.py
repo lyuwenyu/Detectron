@@ -28,28 +28,23 @@ targets[:, 3:] = targets[:, 3:]
 ssd = SSDDetector()
 output = ssd(data, targets)
 
+# -----------
 
-
-
-device = torch.device('cuda:0') if torch.cuda.is_available() else torch.device('cpu')
+device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
 
 dataset = DatasetYolov5('../../dataset/coco128/images/train2017/')
-dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn)
+dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn, shuffle=True)
 
 ssd = SSDDetector().to(device=device)
 ssd.train()
 
 # optimizer = optim.Adam(ssd.parameters(), lr=0.001)
 
-ssd.model[0].eval()
-for p in ssd.model[0].parameters():
-    p.requires_grad = False
-
 optimizer = optim.SGD(ssd.parameters(), lr=0.01, momentum=0.9)
 scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 30], gamma=0.5)
 
 
-for _ in range(3):
+for _ in range(20):
 
     for data, label in dataloader:
         data = data.to(device=device)
