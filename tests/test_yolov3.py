@@ -26,6 +26,7 @@ data = torch.rand(1, 3, 640, 640)
 targets[:, 3:] = targets[:, 3:]
 
 
+yolov3 = YOLOV3Detector()
 output = yolov3(data, targets)
 try:
     print(output.shape, output.sum())

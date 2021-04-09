@@ -195,6 +195,7 @@ class YOLOV3Target(nn.Module):
 
 
 
+
 class SSDTarget(nn.Module):
     def __init__(self, cfg):
         super().__init__()
@@ -231,17 +232,19 @@ class SSDTarget(nn.Module):
         if targets is None:
             preds[:, :, 0:2] = preds[:, :, :2] * priors[:, 2:] + priors[:, :2]
             preds[:, :, 2:4] = preds[:, :, 2:4].exp() * priors[:, 2:]
-            preds[:, :, 4:] = F.softmax(preds[:, :, 4:], dim=-1)
-            # preds[:, :, 4:] = preds[:, :, 4:].sigmoid()
-
+            # preds[:, :, 4:] = F.softmax(preds[:, :, 4:], dim=-1)
+            preds[:, :, 4] = preds[:, :, 4].sigmoid()
+            preds[:, :, 5:] = F.softmax(preds[:, :, 5:], dim=-1)
+            
             return preds
     
         else:
 
-            loss, lbox, lcls = self._compute_loss(preds, priors, targets)
+            loss, lbox, lobj, lcls = self._compute_loss(preds, priors, targets)
             losses['loss'] += loss
-            losses['lcls'] += lcls.item()
             losses['lbox'] += lbox.item()
+            losses['lobj'] += lobj.item()
+            losses['lcls'] += lcls.item()
 
             return losses
 
@@ -283,11 +286,16 @@ class SSDTarget(nn.Module):
         if num_pos > 0: 
             lbox += F.smooth_l1_loss(preds[pos_idx][:, 0:2], t_xy[pos_idx], reduction='mean')
             lbox += F.smooth_l1_loss(preds[pos_idx][:, 2:4], t_wh[pos_idx], reduction='mean')
+            # TODO
+            lcls += F.cross_entropy(preds[pos_idx][:, 5:], t_cls[pos_idx].long()-1, reduction='mean')
 
         # hard neg mining
         with torch.no_grad():
             # loss = -log(p) => -log(softmax(a)) => logsumexp(a) - a[t_cls]
-            loss_c = torch.logsumexp(preds[:, :, 4:], dim=-1) - preds[:, :, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
+            # loss_c = torch.logsumexp(preds[:, :, 4:], dim=-1) - preds[:, :, 4:].gather(-1, t_cls.unsqueeze(-1).long()).squeeze()
+            
+            loss_c = -preds[:, :, 4].sigmoid().log()
+
             loss_c[pos_idx] = 0
 
             _, loss_idx = loss_c.sort(dim=-1, descending=True)
@@ -296,10 +304,11 @@ class SSDTarget(nn.Module):
             num_neg = torch.clamp(self.neg_ratio * num_pos, max=priors.shape[0] - num_pos)
             neg_idx = idx_rank < num_neg
 
-        lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
-        lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
+        # lcls += F.cross_entropy(preds[pos_idx + neg_idx][:, 4:], t_cls[pos_idx + neg_idx].long(), reduction='mean')
+        
+        lobj += F.binary_cross_entropy_with_logits(preds[pos_idx + neg_idx][:, 4],  (t_cls[pos_idx + neg_idx] > 0).float(), reduction='mean')
 
-        return lbox + lcls, lbox, lcls 
+        return lbox + lcls + lobj, lbox, lobj, lcls 
 
 
     def _build_target(self, target, priors, eps=1e-9):

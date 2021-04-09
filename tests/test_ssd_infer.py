@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 
 
 
-dataset = DatasetYolov5('../../dataset/coco128/images/train2017/')
+dataset = DatasetYolov5('/paddle/workspace/coco128/images/train2017/')
 
 _im = dataset[0][0]
 
@@ -40,12 +40,10 @@ print(out.shape)
 # plt.imshow(_im[0].transpose(1, 2, 0) * dataset.std + dataset.mean)
 # plt.show()
 
-# print(out[:, 4:])
+
 print((out[:, 4:].argmax(axis=-1) > 0).sum())
 
-print(out[:, 4:].max(axis=-1).shape)
-
-out = out[(out[:, 4:].argmax(axis=-1) > 0) & (out[:, 4:].max(axis=-1) > 0.8)]
+out = out[out[:, 4:].argmax(axis=-1) > 0]
 
 # out = out[0].cpu().detach().numpy()
 out = out[:, :4] * 640
@@ -59,5 +57,9 @@ draw = ImageDraw.Draw(im)
 for b in out:
     draw.rectangle(b, outline='red')
     
-plt.imshow(im)
-plt.show()
+# plt.imshow(im)
+# plt.show()
+im.save('test.jpg')
+
+
+
