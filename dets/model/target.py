@@ -210,7 +210,7 @@ class SSDTarget(nn.Module):
         self.num_classes = num_classes
 
         self.iou_threshold = 0.4
-        self.neg_ratio = 3.0
+        self.neg_ratio = 1.0
 
         priors = PriorBox(img_size=img_size, strides=self.strides)()
         priors = torch.from_numpy(priors)
