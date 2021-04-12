@@ -3,7 +3,7 @@
 
 - prior box
     - base area
-    - area ratio, aspect ration
+    - area ratio, aspect ratio
     - for every feature layer grid
     - num_anchors * h * w * 4
     - [cx, cy, w, h] belong to [0, 1] 
@@ -23,10 +23,7 @@
 - loss
     - l1 loss for bbox
     - cross entropy for cls
-    
-- hard neg minning
-    - softmax
-        - logsumexp
-    - sigmoid
-        - -log p
 
+- hard neg minning
+    - pred cls logits, p_loss_i = -log p_i -> p_i = -softmax(pred)[i] -> logsumexp(pred) - p_i, where i is index of prior anchors
+    - p_indx = sort(p_loss), sort(p_indx)
