@@ -9,7 +9,7 @@ from collections import defaultdict
 
 from ..utils.bbox import wh_iou, box_iou, bbox_iou
 from ..utils.anchor import PriorBox
-
+from ..utils.matcher import HungarianMatcher
 
 class YOLOV3Target(nn.Module):
     def __init__(self, cfg=None):
@@ -346,5 +346,55 @@ class SSDTarget(nn.Module):
 class DETRTarget(nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        pass
+
+        cost_class = 1. 
+        cost_bbox = 1.
+        cost_giou = 1. 
+
+        self.matcher = HungarianMatcher(cost_class, cost_bbox, cost_giou)
     
+    def forward(self, preds, targets):
+        '''
+        '''
+        losses = defaultdict(int)
+
+        if targets is None:
+            
+            return preds
+
+        else:
+            loss, lcls, lbox = self._compute_loss(preds, targets)
+            losses['loss'] += loss
+            losses['lbox'] += lbox.item()
+            losses['lcls'] += lcls.item()
+
+            return losses
+
+
+    def _compute_loss(self, preds, targets):
+        ''' '''
+        dtype, device = targets.dtype, targets.device
+        n = preds['pred_logits'].shape[0]
+
+        gts = []
+        for i in range(n):
+            _targ = targets[targets[:, 0] == i]
+            _gt = {}
+            _gt['labels'] = _targ[:, 1].long()
+            _gt['boxes'] = _targ[:, 2:]
+            gts.append(_gt)
+
+        index = self.matcher(preds, gts)
+
+        lbox, lcls = [torch.zeros(1).to(dtype=dtype, device=device) for _ in range(2)]
+        for i in range(n):
+            _index = index[i]
+            _targ = targets[targets[:, 0] == i][_index[1]]
+            _pred_logits = preds['pred_logits'][i][_index[0]]
+            _pred_boxes = preds['pred_boxes'][i][_index[0]]
+
+            lcls += F.cross_entropy(_pred_logits, _targ[:, 1].long() + 1) # add bg 0
+            lbox += torch.cdist(_pred_boxes, _targ[:, 2:], p=1).mean()
+            lbox += (1 - bbox_iou(_pred_boxes.T, _targ[:, 2:], x1y1x2y2=False, GIoU=True).mean())
+        
+        return lcls + lbox, lcls, lbox

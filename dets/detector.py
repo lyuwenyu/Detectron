@@ -81,16 +81,19 @@ class DETRDetector(nn.Module):
 
         _backbone = backbone.Resnet50(False, num_layers=1)
         _decoder = decoder.DETRDecoder()
-    
-        self.model = nn.ModuleList([_backbone, _decoder,])
+        _target = target.DETRTarget(None)
+
+        self.model = nn.ModuleList([_backbone, _decoder, _target])
 
 
-    def forward(self, data):
+    def forward(self, data, targets=None):
 
-        for m in self.model:
-            data = m(data)
+        for i in range(len(self.model) - 1):
+            data = self.model[i](data)
+        
+        output = self.model[-1](data, targets)
 
-        return data
+        return output
 
 
 

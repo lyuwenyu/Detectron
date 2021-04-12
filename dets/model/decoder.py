@@ -177,17 +177,24 @@ class DETRDecoder(nn.Module):
         assert len(feats) == 1, ''
 
         hidden = self.conv(feats[0])
-        # n c h w -> l<h * w> n c
         _n, _c, _h, _w = hidden.shape
+
         pos = torch.cat([
             self.col_embed[:_w].unsqueeze(0).repeat(_h, 1, 1), 
             self.row_embed[:_h].unsqueeze(1).repeat(1, _w, 1)], 
             dim=-1).view(_h * _w, 1, _c) # flatten(0, 1).unsqueeze(1)
 
-        # l_scr<_h * _w> -> l_trg<100> 
-        hidden = self.transformer(pos + hidden.view(_n, _c, -1).permute(2, 0, 1), self.query_pos.unsqueeze(1).repeat(1, _n, 1))
+        # n c h w -> l<h * w> n c
+        hidden = hidden.view(_n, _c, -1).permute(2, 0, 1).contiguous()
 
-        return self.linear_class(hidden), self.linear_bbox(hidden).sigmoid()
+        # l_scr<_h * _w> -> l_trg<100> 
+        hidden = self.transformer(pos + hidden, self.query_pos.unsqueeze(1).repeat(1, _n, 1))
+
+        outputs = {}
+        outputs['pred_logits'] = self.linear_class(hidden).permute(1, 0, 2).contiguous()
+        outputs['pred_boxes'] = self.linear_bbox(hidden).sigmoid().permute(1, 0, 2).contiguous()
+
+        return outputs
 
 
     
