@@ -33,7 +33,7 @@ out = yolov3(im)
 print(out.shape)
 print(out.sum())
 
-out = non_max_suppression(out, conf_thres=1e-25, iou_thres=0.01, multi_label=False)
+out = non_max_suppression(out, conf_thres=1e-2, iou_thres=0.01, multi_label=False)
 
 # plt.imshow(_im[0].transpose(1, 2, 0) * dataset.std + dataset.mean)
 # plt.show()
