@@ -185,14 +185,14 @@ class DETRDecoder(nn.Module):
             dim=-1).view(_h * _w, 1, _c) # flatten(0, 1).unsqueeze(1)
 
         # n c h w -> l<h * w> n c
-        hidden = hidden.view(_n, _c, -1).permute(2, 0, 1).contiguous()
+        hidden = hidden.view(_n, _c, -1).permute(2, 0, 1)
 
         # l_scr<_h * _w> -> l_trg<100> 
         hidden = self.transformer(pos + hidden, self.query_pos.unsqueeze(1).repeat(1, _n, 1))
 
         outputs = {}
-        outputs['pred_logits'] = self.linear_class(hidden).permute(1, 0, 2).contiguous()
-        outputs['pred_boxes'] = self.linear_bbox(hidden).sigmoid().permute(1, 0, 2).contiguous()
+        outputs['pred_logits'] = self.linear_class(hidden).permute(1, 0, 2) # .contiguous()
+        outputs['pred_boxes'] = self.linear_bbox(hidden).sigmoid().permute(1, 0, 2) # .contiguous()
 
         return outputs
 

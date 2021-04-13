@@ -27,7 +27,7 @@ from dets.detector import DETRDetector
 
 device = torch.device('cuda:1') if torch.cuda.is_available() else torch.device('cpu')
 dataset = DatasetYolov5('../../dataset/coco128/images/train2017/')
-dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn, shuffle=True)
+dataloader = DataLoader(dataset, batch_size=8, collate_fn=dataset.collate_fn, shuffle=True, num_workers=3)
 
 detr = DETRDetector().to(device)
 detr.train()
@@ -53,6 +53,6 @@ for _ in range(20):
         print(losses['loss'].item(), losses['lbox'],  losses['lobj'], losses['lcls'], )
 
 
-ssd = ssd.to(torch.device('cpu'))
-torch.save(ssd.state_dict(), './detr.pt')
+detr = detr.to(torch.device('cpu'))
+torch.save(detr.state_dict(), './detr.pt')
 
